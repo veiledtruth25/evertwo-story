@@ -1,0 +1,106 @@
+# EverTwo Story
+
+_Dikembangkan dari Bang Story by Bang Tutorial_
+
+Aplikasi web untuk mengubah ide cerita jadi video YouTube: AI menyusun klip dan naskah, Higgsfield membuat gambar dan video, Gemini atau ElevenLabs membuat suara narator, lalu semuanya dirangkai di editor timeline dan diekspor jadi MP4. Berjalan di Docker, dibuka lewat browser.
+
+## Cara menjalankan
+
+Syarat: Docker dengan Docker Compose.
+
+```bash
+cp .env.example .env          # isi APP_PASSWORD (kata sandi masuk) dan SECRETS_KEY (string acak panjang)
+docker compose up -d --build
+```
+
+Buka `http://localhost:8787` (atau alamat mesinnya) dan masuk dengan `APP_PASSWORD`. Build pertama beberapa menit karena whisper.cpp dikompilasi. Data (proyek, database, hasil ekspor) ada di volume Docker `bang-story-data`.
+
+Untuk dipasang di domain sendiri lewat Nginx Proxy Manager, lihat [docs/pengembangan.md](docs/pengembangan.md#di-belakang-nginx-proxy-manager).
+
+Setelah masuk, isi kunci API di **Pengaturan**: Higgsfield untuk gambar dan video, Google Gemini untuk menyusun cerita, dan Gemini atau ElevenLabs untuk suara narator. Video hasil ekspor diunduh lewat tombol **Unduh video**.
+
+## Alur
+
+1. **Ide cerita**: tulis sinopsis, pilih durasi, bahasa, format (16:9 atau 9:16), suara narator, gaya visual (2D, 3D, atau realistis), serta model gambar dan model video Higgsfield untuk proyek ini. AI penyusun cerita (Gemini, OpenRouter, Groq, atau endpoint custom) lalu menulis naskah.
+2. **Naskah**: baca dulu alurnya: berapa adegan, apa yang terjadi di tiap adegan, dan narasi (VO) masing-masing. Adegan bisa diubah, ditambah, dihapus, dan diurutkan ulang. Narasi boleh memuat tag ekspresi suara seperti `<short pause>`, `<long pause>`, `<chuckles>`, atau `<sigh>`. Setelah itu AI membuat visual dari naskah final: prompt gambar, pemeran, gerak kamera dan kekuatannya, transisi, serta arahan gerak untuk video AI. Kalau naskah diubah lagi, hanya adegan yang berubah yang disusun ulang visualnya.
+3. **Storyboard**: setiap adegan punya gambar (Higgsfield), suara narasi (TTS), dan gerak: gerak kamera gratis atau video AI. Suara narasi dibuat dalam satu rekaman utuh lalu dipotong otomatis per adegan, supaya suara dan intonasinya konsisten. Pratinjau gerak kamera berputar otomatis dan tetap terlihat saat panel digulir.
+4. **Editor**: pratinjau langsung dengan gerak kamera, transisi, caption karaoke, musik latar, serta overlay logo, watermark, atau teks yang bisa digeser langsung di pratinjau. Lalu ekspor MP4 dengan FFmpeg.
+
+   Timeline-nya seperti editor video biasa: tarik tepi klip untuk memanjangkan atau memendekkan (video tidak bisa melebihi panjang aslinya; tepi kiri memotong awal video), tarik tepi atau geser suara, caption, musik, dan overlay, **Potong** (S) membelah klip di playhead (suara dan naskahnya ikut terbelah di jeda antar kata), dan **Hapus** (Delete) menghapus item yang dipilih. Tombol bulat di antara klip membuka panel transisi dengan pratinjau langsung.
+
+## Durasi dan suara
+
+Panjang tiap klip mengikuti panjang suara narasinya. Sebelum suara dibuat, durasinya diperkirakan dari jumlah kata (sekitar 2,6 kata per detik, tag ekspresi tidak dihitung). Video AI meminta durasi terpendek yang menutup panjang klip; kalau model tidak bisa sepanjang itu, frame terakhir ditahan sampai klip selesai.
+
+Narasi utuh dibuat per bagian sampai sekitar 4 menit (Gemini) atau 2.400 karakter (ElevenLabs, dengan konteks teks sebelum dan sesudahnya). Untuk Gemini, antar-adegan disisipi `<long pause>`, lalu jeda itu dideteksi dengan FFmpeg dan dicocokkan ke posisi tiap adegan. Untuk ElevenLabs, batas adegan diambil dari waktu tiap kata yang dikirim API-nya. Potongan-potongannya diputar berurutan persis seperti rekaman utuh.
+
+## Caption akurat (Whisper lokal)
+
+Gemini TTS tidak mengirim waktu per kata. Kalau model **Whisper Small** sudah diunduh (Pengaturan › Caption akurat, 488 MB, disimpan di `/data/models/whisper` dan dicek SHA-256-nya), server menjalankan `whisper-cli` (whisper.cpp, dibangun di Dockerfile) di mesin tempat container berjalan untuk mencari kapan tiap kata diucapkan. Kata-kata naskah lalu dicocokkan ke hasil dengar Whisper, jadi ejaan caption tetap mengikuti naskah sedangkan waktunya mengikuti suara asli. Ini berjalan otomatis setelah narasi Gemini dibuat, dan titik potong antar-adegan ikut memakai posisi kata. Klip lama bisa disinkronkan dari tab Caption di Editor. Unduhan bisa dibatalkan dan dilanjutkan; di mode dev, `STUDIO_WHISPER_URL` bisa mengarahkannya ke salinan lokal.
+
+Proyek tersimpan otomatis (juga lewat tombol Simpan atau Ctrl+S) di SQLite, di folder data server (`/data` di Docker).
+
+## Kunci API
+
+Pengguna memasukkan kuncinya sendiri di **Pengaturan › Layanan AI dan kunci**. Setiap bagian (penyusun cerita, suara narator) punya satu dropdown penyedia, dan hanya konfigurasi penyedia yang dipilih yang tampil dan dipakai. Kunci dienkripsi AES-256-GCM dengan `SECRETS_KEY` dari server.
+
+| Layanan | Dipakai untuk | Wajib |
+|---|---|---|
+| Higgsfield (satu API key dari tombol **Copy API key** di console, format `KEY_ID:KEY_SECRET`) | Gambar, lembar karakter, video AI | Ya |
+| Penyusun cerita, pilih satu: Google Gemini, OpenRouter, Groq, atau endpoint custom (OpenAI-compatible) | Menyusun klip, naskah, dan pemeran | Ya, salah satu |
+| Google Gemini | Suara narator Gemini TTS | Kalau memakai Gemini TTS |
+| ElevenLabs | TTS dengan waktu kata presisi | Opsional |
+
+Setelah kunci penyusun cerita disimpan, daftar modelnya diambil langsung dari penyedia (ratusan model untuk OpenRouter) dan dipilih lewat dropdown yang bisa dicari. Daftar disimpan di cache 24 jam dan bisa dimuat ulang kapan saja. Endpoint custom menerima server apa pun yang kompatibel dengan OpenAI API, misalnya Ollama (`http://localhost:11434/v1`), LM Studio, vLLM, DeepSeek, atau xAI Grok (`https://api.x.ai/v1`).
+
+## Model Higgsfield
+
+Semua model Higgsfield yang bisa membuat gambar dari teks (14 model) dan menganimasikan gambar klip (34 model) tersedia. Modelnya dipilih per proyek di bagian **Model AI** pada langkah Ide cerita, lengkap dengan pencarian, filter, dan perkiraan kredit dari endpoint `estimate`. Pilihan terakhir jadi bawaan proyek berikutnya.
+
+API Higgsfield tidak punya daftar harga. Biaya tiap model diambil dari endpoint `estimate` (gratis, tidak memakai kredit) untuk akun pengguna, ditampilkan di tiap baris dropdown (kredit dan US$) dan bisa diurutkan dari yang termurah. Hasilnya disimpan sehari dan dihapus saat kunci Higgsfield diganti.
+
+Daftarnya ada di `src/shared/higgsfield-catalog.json`, disusun dari dokumentasi API (docs.higgsfield.ai) beserta skema input tiap model. `src/shared/higgsfield.ts` membentuk isi request dari skema itu: rasio frame, resolusi 2K untuk gambar, resolusi video sesuai pilihan di proyek (bawaan 1080p, atau yang terdekat yang tersedia di model), durasi yang menutup panjang klip, lembar karakter sebagai referensi bila model menerimanya, serta audio bawaan model dimatikan. Model yang butuh video masukan (edit video, motion control) atau hanya teks-ke-video tidak dimasukkan karena tidak bisa menganimasikan gambar klip.
+
+Untuk output JSON, aplikasi mencoba `json_schema` dulu, lalu `json_object`, lalu teks biasa dengan parser yang toleran (tag `<think>` dan code fence dibuang). Jadi model yang tidak mendukung structured output tetap bisa dipakai.
+
+## Mengembangkan tanpa Docker
+
+Butuh Node.js 22 atau lebih baru dan FFmpeg di PATH. Buka `http://localhost:5173`.
+
+```bash
+npm install
+npm run dev
+```
+
+## Struktur
+
+```
+src/
+  main/        server Node (HTTP, database, AI, FFmpeg)
+    db/          skema SQLite + migrasi
+    services/    higgsfield, llm (Gemini/OpenRouter/Groq/custom), gemini, elevenlabs, audio
+    generation.ts  job gambar, lembar karakter, video, TTS
+    exporter.ts    render MP4 dengan FFmpeg (gerak kamera, xfade, caption ASS, mix audio)
+    jobs.ts        antrean dengan batas proses bersamaan
+  shared/      tipe, preset gaya visual, gerak kamera, caption, katalog model
+  renderer/    tampilan React + Tailwind (window.api ada di lib/webApi.ts)
+resources/fonts  15 font caption (Google Fonts, lisensi di resources/licenses/fonts), dipakai pratinjau dan FFmpeg
+```
+
+`shared/motion.ts` dan `shared/captions.ts` dipakai oleh pratinjau di editor dan oleh ekspor FFmpeg, jadi hasil MP4 sama dengan yang terlihat di editor.
+
+## Dokumentasi pengembang
+
+Ingin mengembangkan aplikasi ini sendiri, atau dengan bantuan AI agent seperti Claude Code, Codex, Cursor, atau Gemini CLI? Mulai dari sini:
+
+- [AGENTS.md](AGENTS.md): ringkasan proyek, perintah, peta kode, dan aturan yang tidak boleh dilanggar. Banyak AI agent membacanya otomatis; Claude Code membacanya lewat [CLAUDE.md](CLAUDE.md).
+- [docs/](docs/README.md): arsitektur, model data, alur produksi, editor dan ekspor, layanan AI, cara menguji, konvensi, keputusan teknis, dan masalah yang diketahui.
+- [CHANGELOG.md](CHANGELOG.md): riwayat versi.
+
+## Catatan
+
+- Seedream tidak tersedia di API Higgsfield, jadi model gambar bawaannya GPT Image 2.5 Sunburst dan model video bawaannya Kling 3.0 Standard.
+- API Higgsfield tidak punya endpoint saldo. Aplikasi menampilkan perkiraan biaya dari endpoint `estimate`.
+- Tanpa model Whisper, waktu caption untuk suara Gemini diperkirakan dari panjang kata. ElevenLabs selalu memberi waktu yang presisi.
+- Harness uji khusus mode dev ada di `src/main/devharness.ts` (variabel `STUDIO_CAPTURE_PLAN`, `STUDIO_USER_DATA`, `STUDIO_LOG`) dan tidak aktif di aplikasi terpasang. Di mode dev, `STUDIO_HF_BASE` bisa mengarahkan panggilan Higgsfield ke server tiruan lokal supaya tampilan bisa diuji tanpa memakai kredit.
+- Lisensi: FFmpeg (GPL), whisper.cpp (MIT), 15 font caption (OFL dan Apache 2.0), dan LobeHub Icons (MIT, untuk logo penyedia) ikut terpasang. Teks lisensinya ada di `resources/licenses`; lisensi FFmpeg disalin dari paket `ffmpeg-static` saat installer dibuat. Model Whisper Small (MIT) diunduh terpisah. Logo penyedia adalah merek milik pemiliknya masing-masing.

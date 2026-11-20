@@ -1,0 +1,50 @@
+{
+  "name": "bang-story",
+  "productName": "EverTwo Story",
+  "version": "1.0.0",
+  "description": "Ubah ide cerita jadi video YouTube: klip, naskah, suara, dan timeline dalam satu aplikasi web.",
+  "author": "EverTwo",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -k -n server,web \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:server": "AUTH_DISABLED=1 tsx watch src/main/index.ts",
+    "dev:web": "vite",
+    "build": "npm run build:web && npm run build:server",
+    "build:web": "vite build",
+    "build:server": "esbuild src/main/index.ts --bundle --platform=node --format=cjs --packages=external --alias:@shared=./src/shared --outfile=out/server/index.cjs",
+    "start": "node out/server/index.cjs",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web"
+  },
+  "dependencies": {
+    "@google/genai": "^2.24.0",
+    "better-sqlite3": "^13.0.3",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "@fontsource-variable/bricolage-grotesque": "^5.3.0",
+    "@fontsource-variable/jetbrains-mono": "^5.3.0",
+    "@fontsource-variable/plus-jakarta-sans": "^5.3.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^24.9.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "lucide-react": "^1.49.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "~5.9.3",
+    "vite": "^7.3.6",
+    "zustand": "^5.0.15",
+    "@types/express": "^5.0.0",
+    "concurrently": "^9.1.0",
+    "esbuild": "^0.25.0",
+    "tsx": "^4.19.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

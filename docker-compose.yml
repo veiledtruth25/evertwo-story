@@ -1,0 +1,20 @@
+services:
+  evertwo-story:
+    # The image is built by GitHub Actions and published to ghcr.io; set IMAGE in .env.
+    # For a local build instead: `docker compose build` (uses the Dockerfile in this folder).
+    build: .
+    image: ${IMAGE:-evertwo-story:local}
+    pull_policy: ${PULL_POLICY:-missing}
+    container_name: evertwo-story
+    init: true
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8787}:8787"
+    environment:
+      APP_PASSWORD: ${APP_PASSWORD:?Isi APP_PASSWORD di file .env}
+      SECRETS_KEY: ${SECRETS_KEY:-}
+    volumes:
+      - evertwo-story-data:/data
+
+volumes:
+  evertwo-story-data:
