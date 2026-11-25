@@ -292,11 +292,6 @@
    "frame": 1560
   },
   {
-   "kind": "paper",
-   "variant": "slide",
-   "frame": 1620
-  },
-  {
    "kind": "riser",
    "variant": "air",
    "frame": 1632,
@@ -312,6 +307,11 @@
    "kind": "chime",
    "variant": "glint",
    "frame": 1641
+  },
+  {
+   "kind": "paper",
+   "variant": "slide",
+   "frame": 1653
   }
  ],
  "key": "D",
