@@ -1,0 +1,7 @@
+node_modules/
+out/
+cuts/
+review/
+review-notes/
+*.mp4
+*.wav

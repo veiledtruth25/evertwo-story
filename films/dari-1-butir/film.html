@@ -1,0 +1,227 @@
+<!doctype html><html lang="id"><head><meta charset="utf-8"><title>Dari 1 butir</title>
+<style>html,body{margin:0;background:#111}canvas{display:block;width:100vw;height:auto;max-height:100vh;object-fit:contain}</style>
+<script src="springs.js"></script></head>
+<body><canvas id="c"></canvas><script>
+// DARI 1 BUTIR: how rice is planted, as a paper cut-out film (take-one, style: paper-cutout).
+// Every frame is a pure function of t: seeded hash noise only, no Math.random, no carried state.
+const P=new URLSearchParams(location.search).has('portrait');
+const W=P?1080:1920,H=P?1350:1080;
+const c=document.getElementById('c');c.width=W;c.height=H;const g=c.getContext('2d');
+window.FILM_DURATION=30;
+const TAU=Math.PI*2,clamp=(x,a,b)=>Math.min(b,Math.max(a,x)),lerp=(a,b,u)=>a+(b-a)*u;
+const smoothstep=(a,b,x)=>{const u=clamp((x-a)/(b-a),0,1);return u*u*(3-2*u)};
+const U=(t,p='camera')=>Spring.unit(t,p);
+const hash=n=>{n=Math.imul(n^(n>>>16),0x45d9f3b);n=Math.imul(n^(n>>>16),0x45d9f3b);n^=n>>>16;return(n>>>0)/4294967296};
+const rnd=(i,s=0)=>hash((i*7919+s*104729+13)|0);
+const vnoise=(x,s)=>{const i=Math.floor(x),f=x-i,u=f*f*(3-2*f);return lerp(rnd(i,s),rnd(i+1,s),u)*2-1};
+const hex=h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
+const mixc=(a,b,u)=>{const A=hex(a),B=hex(b);return'#'+A.map((v,i)=>Math.round(lerp(v,B[i],clamp(u,0,1))).toString(16).padStart(2,'0')).join('')};
+
+// ---- palette: one box of construction paper
+const K={kraft:'#d2b27e',cream:'#f3e8cf',brick:'#b8452d',gold:'#e0b13a',marigold:'#e6a62c',teal:'#2f7f86',water:'#6fb6c9',
+  waterDeep:'#4f9bb0',leaf:'#7cb94f',leafDark:'#2f7a3b',mud:'#6b4a2f',mudDark:'#553823',navy:'#27415c',sky:'#bfe3ea',ink:'#3a2a1a'};
+
+let T=0,BOIL=0,LZ=1; // time, boil step (torn edges re-seed at 7 fps), camera zoom for shadow scale
+// ---- paper grain tile (seeded)
+const GT=document.createElement('canvas');GT.width=GT.height=320;
+(()=>{const x=GT.getContext('2d');const id=x.createImageData(320,320);
+  for(let i=0;i<320*320;i++){const r=rnd(i,3),d=r<.5?0:255,a=Math.abs(r-.5)*70;id.data[i*4]=d;id.data[i*4+1]=d;id.data[i*4+2]=d;id.data[i*4+3]=a}
+  x.putImageData(id,0,0);x.lineWidth=1;
+  for(let i=0;i<240;i++){const px=rnd(i,5)*320,py=rnd(i,6)*320,a=rnd(i,7)*TAU,l=6+rnd(i,8)*22;
+    x.strokeStyle=rnd(i,9)<.5?'rgba(255,250,235,.16)':'rgba(70,45,20,.10)';x.beginPath();x.moveTo(px,py);x.lineTo(px+Math.cos(a)*l,py+Math.sin(a)*l);x.stroke()}})();
+const GRAIN=g.createPattern(GT,'repeat');
+
+// ---- paper shapes
+function shape(pts,{amp=1.6,seed=1,seg=34,boil=false}={}){
+  const out=[],n=pts.length;
+  for(let i=0;i<n;i++){const a=pts[i],b=pts[(i+1)%n],dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy)||1,k=Math.max(1,Math.round(L/seg)),nx=-dy/L,ny=dx/L;
+    for(let j=0;j<k;j++){const u=j/k,d=amp*vnoise(i*50+j*.9+(boil?BOIL*3.7:0),seed);out.push([a[0]+dx*u+nx*d,a[1]+dy*u+ny*d])}}
+  const p=new Path2D();p.moveTo(out[0][0],out[0][1]);for(let i=1;i<out.length;i++)p.lineTo(out[i][0],out[i][1]);p.closePath();return p}
+function smooth(pts){const n=pts.length,p=new Path2D(),m=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];
+  let s=m(pts[n-1],pts[0]);p.moveTo(s[0],s[1]);
+  for(let i=0;i<n;i++){const q=pts[i],e=m(pts[i],pts[(i+1)%n]);p.quadraticCurveTo(q[0],q[1],e[0],e[1])}p.closePath();return p}
+const rectPts=(x,y,w,h)=>[[x,y],[x+w,y],[x+w,y+h],[x,y+h]];
+function blobPts(cx,cy,rx,ry,n=14,amp=.12,seed=1){const o=[];for(let i=0;i<n;i++){const a=i/n*TAU,r=1+amp*vnoise(i*1.7,seed);o.push([cx+Math.cos(a)*rx*r,cy+Math.sin(a)*ry*r])}return o}
+// h = how high the piece floats over the one below: drives shadow offset and blur
+function piece(path,color,h=2,o={}){
+  g.save();
+  if(o.fringe){g.strokeStyle='rgba(255,248,230,.9)';g.lineWidth=7;g.lineJoin='round';g.stroke(path)}
+  g.shadowColor=`rgba(70,45,20,${.24+.02*Math.min(h,9)})`;g.shadowBlur=(3+h*2.2)*LZ;g.shadowOffsetX=h*.9*LZ;g.shadowOffsetY=h*1.5*LZ;
+  g.fillStyle=color;g.fill(path);g.restore();
+  if(o.grain!==false&&!o.small){g.save();g.clip(path);g.globalAlpha=o.ga??.55;g.fillStyle=GRAIN;g.fillRect(-W,-H,W*3,H*3);g.restore()}}
+const at=(x,y,rot,sx,sy,fn)=>{g.save();g.translate(x,y);g.rotate(rot);g.scale(sx,sy===undefined?sx:sy);fn();g.restore()};
+function bg(color){g.fillStyle=color;g.fillRect(-60,-60,W+120,H+120);g.save();g.globalAlpha=.6;g.fillStyle=GRAIN;g.fillRect(-60,-60,W+120,H+120);g.restore()}
+function strip(x1,y1,x2,y2,w,color,h=1.5){const a=Math.atan2(y2-y1,x2-x1),L=Math.hypot(x2-x1,y2-y1);
+  at(x1,y1,a,1,1,()=>piece(smooth([[0,-w/2],[L*.5,-w/2],[L,-w*.4],[L,w*.4],[L*.5,w/2],[0,w/2]]),color,h,{small:true}))}
+function blade(bx,by,len,ang,w,color,bend=0,h=1){ // a leaf strip, base at (bx,by), tip toward angle ang (0 = up)
+  const tx=bx+Math.sin(ang)*len+bend*len*.5,ty=by-Math.cos(ang)*len+Math.abs(bend)*len*.12;
+  const mx=bx+Math.sin(ang)*len*.5,my=by-Math.cos(ang)*len*.55,p=new Path2D();
+  p.moveTo(bx-w,by);p.quadraticCurveTo(mx-w*.9,my,tx,ty);p.quadraticCurveTo(mx+w*.9+bend*len*.1,my,bx+w,by);p.closePath();piece(p,color,h,{small:true});return[tx,ty]}
+function grainShape(size){const rx=size*.5,ry=size*.2;return smooth([[-rx,0],[-rx*.7,-ry*.9],[0,-ry],[rx*.55,-ry*.75],[rx*1.08,0],[rx*.55,ry*.75],[0,ry],[-rx*.7,ry*.9]])}
+function drawGrain(x,y,size,rot,h){at(x,y,rot,1,1,()=>{piece(grainShape(size),K.cream,h,{small:size<60});
+  g.save();g.globalAlpha=.9;g.fillStyle='#e6d3a6';g.fill(smooth([[-size*.38,0],[-size*.2,-size*.1],[size*.25,-size*.08],[size*.5,0],[size*.25,size*.08],[-size*.2,size*.1]]));
+  g.strokeStyle='#b99a5a';g.lineWidth=Math.max(1.5,size*.012);g.beginPath();g.moveTo(-size*.45,0);g.lineTo(size*.5,0);g.stroke();g.restore();
+  g.strokeStyle='#caa96a';g.lineWidth=Math.max(1.5,size*.014);g.beginPath();g.moveTo(size*.54,0);g.lineTo(size*.8,-size*.03);g.stroke()})}
+
+// ---- captions: a paper strip that lifts onto the table
+function caption(lt,big,small){
+  const u=U(lt-.25,'playful');if(lt<.25)return;
+  g.save();g.globalAlpha=clamp((lt-.25)/.18,0,1);g.font='800 92px Inter, sans-serif';const wb=g.measureText(big).width;g.font='700 58px Inter, sans-serif';const ws=small?g.measureText(small).width:0;
+  const w=Math.max(wb,ws)+90,h=small?208:150,x=70,y=70-(1-clamp(u,0,1.2))*(h+90);
+  at(x,y,-.018*(1-clamp(u,0,1)),1,1,()=>{piece(shape(rectPts(0,0,w,h),{amp:1.4,seed:11}),K.cream,6,{ga:.4});
+    g.fillStyle=K.ink;g.textBaseline='alphabetic';g.font='800 92px Inter, sans-serif';g.fillText(big,45,small?100:104);
+    if(small){g.fillStyle=K.brick;g.font='700 58px Inter, sans-serif';g.fillText(small,45,172)}});g.restore()}
+
+// ---- the paddy: five rows in perspective, shared by planting, growing and harvest
+const ROW_Y=[492,556,634,734,858],ROW_S=[.42,.55,.72,.95,1.25],NP=8;
+const plantX=(r,n)=>960+(n-(NP-1)/2)*205*ROW_S[r]+(r%2?60*ROW_S[r]:0);
+const PT0=.35,PDT=.09,RGAP=.3; // planting: first seedling, seconds per seedling, pause between rows
+const plantTime=(r,n)=>{const o=4-r;return PT0+(o*NP+(o%2?NP-1-n:n))*PDT+o*RGAP};
+function clump(x,y,s,gr,col,sway,blades,gold=0,seed=0,h=1){
+  const H0=118*s*gr;
+  for(let i=0;i<blades;i++){const sp=(i-(blades-1)/2),ang=sp*.3*(.6+.4*gr)+sway*.06*(1+i%2),len=H0*(.78+.34*rnd(i,seed));
+    const bend=gold*(.5+.4*rnd(i,seed+1))*(sp>=0?1:-1)*.9,[tx,ty]=blade(x+sp*5*s,y,len,ang,5.5*s*(.55+.45*gr),col,bend,h);
+    if(gold>.3)for(let k=0;k<3;k++)at(tx-bend*8*s*k,ty+k*9*s,.7*(bend>=0?1:-1),1,1,()=>{piece(smooth([[-9*s,0],[0,-4.5*s],[9*s,0],[0,4.5*s]]),K.gold,0,{small:true})})}}
+function farmer(x,y,s,f,bend,armA,sickle=false){
+  g.save();g.translate(x,y);g.scale(s*f,s);
+  strip(-16,-124,-26,0,26,K.navy,1.5);strip(16,-124,26,0,26,K.navy,1.5);
+  const sh=[Math.sin(bend)*128,-124-Math.cos(bend)*128],hd=[sh[0]+Math.sin(bend)*46+14,sh[1]-Math.cos(bend)*46-14];
+  strip(0,-124,sh[0],sh[1],74,K.brick,2);
+  piece(smooth(blobPts(hd[0],hd[1],33,33,10,.04,4)),'#c68b59',3,{small:true});
+  const hand=[sh[0]+Math.sin(armA)*196,sh[1]+Math.cos(armA)*196];
+  strip(sh[0],sh[1],hand[0],hand[1],28,'#9c3a26',3.5);
+  piece(smooth(blobPts(hand[0],hand[1],15,15,8,.05,6)),'#c68b59',4,{small:true});
+  if(sickle)at(hand[0],hand[1],armA*-1+.5,1,1,()=>{strip(0,0,0,-34,10,'#6a4a2c',4);piece(smooth([[-6,-34],[56,-52],[84,-18],[58,-34],[0,-24]]),'#cfd4d8',5,{small:true})});
+  else{blade(hand[0],hand[1],54,.4,5,K.leaf,.4,4);blade(hand[0]+4,hand[1],46,-.1,5,K.leafDark,0,4)}
+  piece(shape([[hd[0]-92,hd[1]-6],[hd[0]+92,hd[1]-6],[hd[0]+4,hd[1]-92]],{amp:1.2,seed:3,seg:30}),'#e8c870',6,{ga:.5});
+  g.restore()}
+function hills(base,cols){cols.forEach((col,i)=>{const pts=[[-60,base+30]];for(let k=0;k<=8;k++)pts.push([k*W/8,base-40-i*38+vnoise(k*.9+i*7,21+i)*52]);pts.push([W+60,base+30]);
+  piece(shape(pts,{amp:3,seed:30+i,seg:50}),col,2+i*1.5,{ga:.4})})}
+function sunmoon(phi,cx,cy,rx,ry){
+  const sx=cx-Math.cos(phi)*rx,sy=cy-Math.sin(phi)*ry,mx=cx+Math.cos(phi)*rx,my=cy+Math.sin(phi)*ry;
+  at(sx,sy,phi*.4,1,1,()=>{for(let i=0;i<12;i++)at(0,0,i/12*TAU,1,1,()=>piece(smooth([[96,-16],[150,0],[96,16]]),K.marigold,1,{small:true}));piece(smooth(blobPts(0,0,80,80,14,.02,2)),K.marigold,3,{small:true})});
+  at(mx,my,0,1,1,()=>{piece(smooth(blobPts(0,0,58,58,12,.02,5)),'#f2ecd8',3,{small:true});[[-18,-12,13],[16,10,10],[8,-24,7]].forEach(([a,b,r])=>{g.fillStyle='#d8d0b4';g.beginPath();g.arc(a,b,r,0,TAU);g.fill()})})}
+function ripple(x,y,s,lt,dur=.7){if(lt<0||lt>dur)return;const u=lt/dur;g.save();g.globalAlpha=(1-u)*.9;g.strokeStyle='#e4f4f7';g.lineWidth=5*s;g.beginPath();g.ellipse(x,y,(14+70*u)*s,(5+22*u)*s,0,0,TAU);g.stroke();g.restore()}
+
+// ---- scenes
+const S=[0,2.8,6.3,9.8,15.5,20,24.8];const WIPE=.55;
+const BG=['#d2b27e','#e6e0bd','#cfe6df','#bfe3ea','#bfe3ea','#d6c08a','#d2b27e'];
+function push(lt,dur,z0,z1,cx,cy){const z=lerp(z0,z1,smoothstep(0,dur,lt));g.translate(cx,cy);g.scale(z,z);g.translate(-cx,-cy);LZ=z}
+
+function scene1(lt){ // 1 butir
+  bg(K.kraft);push(lt,2.8,1,1.05,960,540);
+  const fall=clamp((lt-1.45)/.45,0,1),fq=fall*fall,gx=960,gy=lerp(430+Math.sin(lt*2.2)*9,800,fq),sc=lerp(1,.36,fq),h=lerp(16,1,fq);
+  piece(shape([[-60,830],[W+60,812],[W+60,H+60],[-60,H+60]],{amp:5,seed:8,boil:true,seg:30}),K.waterDeep,3,{fringe:true});
+  drawGrain(gx,gy,560*sc,-.5+fall*.4,h);
+  piece(shape([[-60,925],[W+60,905],[W+60,H+60],[-60,H+60]],{amp:5,seed:9,boil:true,seg:30}),K.water,5,{fringe:true});
+  [0,.25,.5].forEach((d,i)=>ripple(960,872,2.2,lt-1.92-d));
+  caption(lt,'1 butir.')}
+
+function scene2(lt){ // semai
+  bg('#e6e0bd');push(lt,3.5,1,1.04,960,700);
+  at(1630,220,lt*.25,1,1,()=>{for(let i=0;i<12;i++)at(0,0,i/12*TAU,1,1,()=>piece(smooth([[92,-14],[140,0],[92,14]]),K.marigold,1,{small:true}));piece(smooth(blobPts(0,0,76,76,14,.02,2)),K.marigold,3,{small:true})});
+  piece(shape(rectPts(300,610,1320,380),{amp:6,seed:12,boil:true,seg:40}),K.mud,5,{fringe:true});
+  for(let i=0;i<4;i++)strip(340,690+i*70,1580,684+i*70+vnoise(i,3)*10,10,K.mudDark,1);
+  const sp=[[960,740,.2],...Array.from({length:13},(_,i)=>[420+rnd(i,40)*1080,690+rnd(i,41)*230,1.3+i*.1])];
+  sp.forEach(([x,y,t0],i)=>{const u=clamp(U(lt-t0,'playful'),0,1.25),gr=u*(i?.82+.3*rnd(i,42):1);
+    drawGrain(x-2,y+6,38,.15,0);if(gr>.02)clump(x,y,1.35,gr,i%3?K.leaf:'#8cc45a',Math.sin(lt*2+i),3+(i%2),0,i,2)});
+  piece(shape([[-60,930],[W+60,915],[W+60,H+60],[-60,H+60]],{amp:5,seed:13,boil:true,seg:30}),K.water,4,{fringe:true});
+  caption(lt,'Semai','±3 minggu')}
+
+function scene3(lt){ // olah & airi sawah
+  bg('#cfe6df');push(lt,3.5,1,1.05,960,600);
+  hills(330,['#9bc08a','#7fae6f']);
+  const tops=[350,490,650,860],bots=[500,660,870,H+40],mudc=['#8b6a45','#7a5a3a','#6b4a2f','#5a3d26'];
+  for(let i=0;i<4;i++){
+    piece(shape([[-60,tops[i]],[W+60,tops[i]],[W+60,bots[i]+10],[-60,bots[i]+10]],{amp:3,seed:20+i,seg:60}),mudc[i],2+i*2,{grain:true});
+    const u=clamp(U(lt-.2-i*.4,'camera'),0,1),wc=mixc('#9a8760',lt>2.2?K.water:'#9a8760',smoothstep(2.1,3.2,lt)),mud=1-smoothstep(1.9,3.1,lt);
+    if(u>.01){const x0=-30,w=(W+60)*u,y0=tops[i]+22,y1=bots[i]-6;piece(shape(rectPts(x0,y0,w,y1-y0),{amp:5,seed:24+i,boil:true,seg:40}),mixc(K.water,'#8c7a58',mud*.5),3+i,{fringe:true,ga:.3});
+      for(let k=0;k<5;k++){const sx=((rnd(k+i*9,50)*W+lt*(60+k*9))%(W+300))-150;if(sx<w)strip(sx,y0+(y1-y0)*(.2+.14*k),sx+120+60*rnd(k,51),y0+(y1-y0)*(.2+.14*k)+4,6+i,'rgba(230,246,248,.55)',0)}
+      if(i>=2)for(let k=0;k<6;k++){const bx=clamp(160+k*300+Math.sin(lt*1.7+k)*60,0,w-60),by=lerp(y0,y1,.3+.5*rnd(k+i,52));if(mud>.05&&bx<w-60)at(bx,by,lt*(1+k*.2)+k,1,1,()=>piece(shape(blobPts(0,0,44*mud+8,16*mud+4,10,.2,k+i*5),{amp:5,seed:k,boil:true,seg:22}),K.mudDark,2,{small:true}))}}
+    piece(shape(rectPts(-60,tops[i]-4,W+120,20),{amp:3,seed:30+i,seg:50}),'#7da24f',3,{small:true})}
+  caption(lt,'Olah & airi sawah')}
+
+function planted(r,n,t){return clamp(U(t-plantTime(r,n),'playful'),0,1.3)}
+function scene4(lt){ // tanam
+  bg(K.sky);push(lt,5.7,1,1.07,960,640);
+  hills(380,['#9bc08a','#7fae6f']);
+  piece(shape([[-60,372],[W+60,372],[W+60,H+60],[-60,H+60]],{amp:3,seed:40,seg:60}),K.water,3,{ga:.3});
+  [[300,420,260],[1300,430,340],[820,470,200]].forEach(([x,y,w],i)=>piece(smooth(blobPts(x,y,w,26,12,.1,i)),'rgba(255,252,240,.55)',0,{small:true}));
+  // seedlings
+  
+  for(let r=0;r<5;r++)for(let n=0;n<NP;n++){const t0=plantTime(r,n),u=planted(r,n,lt);if(u>.01){const x=plantX(r,n),y=ROW_Y[r],s=ROW_S[r];ripple(x,y+4*s,s,lt-t0,.6);clump(x,y,s,.5*u,K.leaf,2.2*Math.sin(lt*2.6+n+r),4,0,n+r*9,1.5)}}
+  // farmer: stands behind the planting front, row by row; between rows he turns like a sheet of paper
+  const OFF=r=>205*ROW_S[r],rowOf=o=>4-o,dirOf=o=>o%2?-1:1;
+  const front=(o,fk)=>{const r=rowOf(o),idx=o%2?NP-1-fk:fk,i0=Math.floor(clamp(idx,0,NP-1)),i1=Math.min(NP-1,i0+1);
+    return[lerp(plantX(r,i0),plantX(r,i1),clamp(idx,0,NP-1)-i0)-dirOf(o)*OFF(r),ROW_Y[r]+62*ROW_S[r],ROW_S[r]]};
+  let fx,fy,fs,ff,armA=1.35,o=0;
+  const ts0=plantTime(rowOf(0),0);
+  for(let k=0;k<5;k++)if(lt>=plantTime(rowOf(k),k%2?NP-1:0)-1e-6)o=k;
+  const tsO=plantTime(rowOf(o),o%2?NP-1:0),teO=tsO+(NP-1)*PDT;
+  if(lt<ts0){[fx,fy,fs]=front(0,0);ff=1}
+  else if(lt<=teO+PDT){const fk=clamp((lt-tsO)/PDT,0,NP-1);[fx,fy,fs]=front(o,fk);ff=dirOf(o);
+    const ph=((lt-tsO)/PDT)%1;armA=.67+.68*Math.pow(Math.sin(Math.PI*clamp(ph,0,1)),.7)}
+  else{const nx=Math.min(4,o+1),u=smoothstep(0,RGAP,lt-(teO+PDT)),A=front(o,NP-1),B=front(nx,0);
+    fx=lerp(A[0],B[0],u);fy=lerp(A[1],B[1],u);fs=lerp(A[2],B[2],u);ff=dirOf(o)*Math.cos(Math.PI*u);if(o===4)armA=1.0+.14*Math.sin(lt*4)}
+  if(Math.abs(ff)<.14)ff=.14*Math.sign(ff||1);
+  farmer(fx,fy,fs,ff,.78+.03*Math.sin(lt*8),armA);
+  caption(lt,'Tanam','rumpun demi rumpun')}
+
+function field(lt,gr,col,sway,gold,cut){ // shared by scenes 5 and 6
+  for(let r=0;r<5;r++)for(let n=0;n<NP;n++){const x=plantX(r,n),y=ROW_Y[r],s=ROW_S[r],o=cut?cut(r,n):null;
+    if(o&&o.fell>0){at(x,y,o.dir*(Math.PI/2)*clamp(o.fell,0,1.04),1,1,()=>clump(0,0,s,1,col,0,5,gold,n+r*9,1.5))}
+    else clump(x,y,s,gr,col,sway*Math.sin(lt*2.1+n*.7+r),r<2?5:6,gold,n+r*9,1.5)}}
+function scene5(lt){ // rawat
+  const phi=lt*1.4+.5;
+  const day=smoothstep(-.2,.3,Math.sin(phi*2)),dusk=1-Math.abs(clamp(Math.sin(phi*2)*3,-1,1));
+  bg(mixc(mixc(K.navy,K.sky,day),'#e8a56a',dusk*.35*(1-Math.abs(day-.5)*0)));push(lt,4.5,1,1.04,960,640);
+  sunmoon(phi*2,960,470,820,520);hills(380,['#7fae6f','#5f9a5a']);
+  piece(shape([[-60,372],[W+60,372],[W+60,H+60],[-60,H+60]],{amp:3,seed:40,seg:60}),mixc(K.waterDeep,K.water,day*.7+.2),3,{ga:.3});
+  const gr=lerp(.5,1.3,smoothstep(0,4.2,lt));field(lt,gr,mixc(K.leaf,K.leafDark,smoothstep(.2,4,lt)),1,0);
+  caption(lt,'Rawat','±3 bulan')}
+function scene6(lt){ // panen
+  bg('#e8cf8a');push(lt,4.8,1,1.06,960,660);
+  piece(smooth(blobPts(1560,200,100,100,14,.02,2)),K.marigold,3,{small:true});
+  hills(380,['#c9ae6a','#b99a55']);
+  piece(shape([[-60,372],[W+60,372],[W+60,H+60],[-60,H+60]],{amp:3,seed:40,seg:60}),'#d9c58a',2,{ga:.5});
+  const gold=smoothstep(0,.7,lt),col=mixc(K.leafDark,'#d9a82c',gold);
+  const tc=(r,n)=>r===4?.5+n*.3:(3.0+(4-r)*.28+n*.05);
+  field(lt,1.3,col,1,gold,(r,n)=>({fell:U(lt-tc(r,n),'snappy')>.02?clamp((lt-tc(r,n))/.28,0,1):0,dir:1}));
+  const k=clamp((lt-.5)/.3,0,7),fx=plantX(4,Math.floor(k))*1+(k%1)*(plantX(4,Math.min(7,Math.floor(k)+1))-plantX(4,Math.floor(k))),done=lt>2.9;
+  const ph=((lt-.5)/.3)%1,sw=lt<.5?1.5:(done?1.5:1.5-1.7*smoothstep(.1,.55,ph));
+  farmer(done?plantX(4,7)+240:fx-190,ROW_Y[4]+78,ROW_S[4],1,.7,sw,true);
+  for(let i=0;i<2;i++){const u=clamp(U(lt-3.9-i*.3,'playful'),0,1.2);if(u>.02)at(1500+i*150,ROW_Y[4]+110-i*10,0,u,u,()=>{for(let b=-3;b<=3;b++)blade(b*8,0,150,b*.07,7,'#d9a82c',0,2);strip(-26,-60,26,-60,10,K.brick,3)})}
+  caption(lt,'Panen')}
+function scene7(lt){ // sepiring nasi
+  bg(K.kraft);{const z=lerp(1,1.07,lt/5.2);g.translate(960,640);g.scale(z,z);g.translate(-960,-640)}
+  const cx=960,rimY=700;
+  at(0,0,0,1,1,()=>{
+    piece(smooth([[cx-380,rimY],[cx-330,rimY+170],[cx-150,rimY+270],[cx+150,rimY+270],[cx+330,rimY+170],[cx+380,rimY]]),'#f7f1e3',8,{ga:.4});
+    g.save();g.globalAlpha=1;g.fillStyle=K.teal;g.beginPath();g.moveTo(cx-366,rimY+40);g.quadraticCurveTo(cx,rimY+90,cx+366,rimY+40);g.lineTo(cx+362,rimY+78);g.quadraticCurveTo(cx,rimY+128,cx-362,rimY+78);g.fill();g.restore()});
+  const mu=clamp(U(lt-.3,'heavy'),0,1);
+  if(mu>.01)piece(smooth(blobPts(cx,rimY-20,320*mu,210*mu,16,.03,9).map(([x,y])=>[x,y<rimY-20?y:rimY-20+(y-rimY+20)*.2])),'#fffaf0',2,{ga:.3});
+  const NG=150;for(let i=0;i<NG;i++){const a=rnd(i,60)*TAU,r=Math.sqrt(rnd(i,61)),fx=cx+Math.cos(a)*r*290,fy=rimY-30-Math.abs(Math.sin(a))*r*(1-r*.35)*190+8,ti=.25+rnd(i,62)*1.3,u=clamp((lt-ti)/.5,0,1);
+    if(u<=0)continue;const y=lerp(fy-640,fy,u*u);drawGrain(fx,y,46,rnd(i,63)*TAU,u<1?4:1)}
+  piece(smooth([[cx-390,rimY-6],[cx-340,rimY-28],[cx+340,rimY-28],[cx+390,rimY-6],[cx+340,rimY+22],[cx-340,rimY+22]]),'#f7f1e3',8,{ga:.4});
+  for(let i=0;i<5;i++){const base=smoothstep(1.3+i*.12,2,lt),ox=cx-200+i*100,pts=[];for(let k=0;k<=10;k++){const q=k/10;pts.push([ox+Math.sin(q*5+lt*2.4+i*2)*34*q,rimY-260-q*(180+40*i)-((lt*60)%40)*0])}
+    if(base>0){g.save();g.globalAlpha=.65*base*(1-.3*(i%3)/2);g.strokeStyle='#fffaf0';g.lineWidth=26;g.lineCap='round';g.beginPath();pts.forEach((p,k)=>k?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));g.stroke();g.restore()}}
+  const fu=clamp((lt-2.0)/.4,0,1);if(lt>=1.9){const y=lerp(rimY-700,rimY-232,fu*fu),bounce=lt>2.4?-14*Math.exp(-(lt-2.4)*9)*Math.abs(Math.sin((lt-2.4)*18)):0;drawGrain(cx+10,y+bounce,210,-.5+fu*.3,lerp(14,2,fu))}
+  // text: cut paper strips, one idea each, from the top
+  const L=[['Dari 1 butir.',1.2,118,120],['Jadi sepiring nasi.',2.2,92,300]];
+  L.forEach(([txt,t0,fs,ty])=>{const u=clamp(U(lt-t0,'playful'),0,1.2);if(lt<t0)return;g.save();g.globalAlpha=clamp((lt-t0)/.18,0,1);g.font=`800 ${fs}px Inter, sans-serif`;const w=g.measureText(txt).width+80,h=fs+56;
+    at(cx,ty+(1-clamp(u,0,1))*-80,-.012,1,1,()=>{piece(shape(rectPts(-w/2,-h/2,w,h),{amp:1.4,seed:fs}),K.cream,6,{ga:.4});g.fillStyle=K.ink;g.textAlign='center';g.textBaseline='middle';g.fillText(txt,0,4)});g.restore()})}
+
+const SC=[scene1,scene2,scene3,scene4,scene5,scene6,scene7];
+function drawScene(i,t){g.save();SC[i](Math.max(0,t-S[i]));g.restore();LZ=1}
+window.renderFrame=t=>{
+  g.setTransform(1,0,0,1,0,0);g.globalAlpha=1;g.globalCompositeOperation='source-over';g.filter='none';g.shadowColor='transparent';
+  T=t;BOIL=Math.floor(t*7);let idx=0;for(let i=0;i<S.length;i++)if(t>=S[i])idx=i;
+  const u=idx>0?Math.min(1,Spring.unit(t-S[idx],'camera')*1.01):1;
+  if(idx>0&&u<1){drawScene(idx-1,t);const xe=W+60-(W+160)*u;
+    const sheet=shape([[xe,-60],[W+60,-60],[W+60,H+60],[xe,H+60]],{amp:7,seed:77,boil:true,seg:36});
+    g.save();g.shadowColor='rgba(40,25,10,.45)';g.shadowBlur=28;g.shadowOffsetX=-16;g.shadowOffsetY=4;g.fillStyle=BG[idx];g.fill(sheet);g.restore();
+    g.save();g.strokeStyle='rgba(255,248,230,.9)';g.lineWidth=8;g.lineJoin='round';g.stroke(sheet);g.restore();
+    g.save();g.clip(sheet);drawScene(idx,t);g.restore()}
+  else drawScene(idx,t)};
+document.fonts.load('800 92px Inter').then(()=>document.fonts.ready).then(()=>{window.READY=true;if(navigator.webdriver)return;let s=performance.now();const loop=n=>{window.renderFrame(((n-s)/1000)%window.FILM_DURATION);requestAnimationFrame(loop)};requestAnimationFrame(loop)});
+</script></body></html>

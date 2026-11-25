@@ -1,0 +1,319 @@
+{
+ "fps": 60,
+ "seed": 42,
+ "cues": [
+  {
+   "kind": "paper",
+   "variant": "rustle",
+   "frame": 3,
+   "gainDb": -3
+  },
+  {
+   "kind": "ink",
+   "variant": "plip",
+   "frame": 115
+  },
+  {
+   "kind": "paper",
+   "variant": "slide",
+   "frame": 195
+  },
+  {
+   "kind": "pop",
+   "variant": "tiny",
+   "frame": 246
+  },
+  {
+   "kind": "pop",
+   "variant": "tiny",
+   "frame": 258
+  },
+  {
+   "kind": "pop",
+   "variant": "tiny",
+   "frame": 270
+  },
+  {
+   "kind": "pop",
+   "variant": "tiny",
+   "frame": 285
+  },
+  {
+   "kind": "paper",
+   "variant": "slide",
+   "frame": 405
+  },
+  {
+   "kind": "swish",
+   "variant": "in",
+   "frame": 408
+  },
+  {
+   "kind": "swish",
+   "variant": "in",
+   "frame": 432
+  },
+  {
+   "kind": "swish",
+   "variant": "in",
+   "frame": 456
+  },
+  {
+   "kind": "swish",
+   "variant": "in",
+   "frame": 480
+  },
+  {
+   "kind": "tick",
+   "variant": "soft",
+   "frame": 609,
+   "gainDb": 6,
+   "duckDb": 2
+  },
+  {
+   "kind": "paper",
+   "variant": "slide",
+   "frame": 615
+  },
+  {
+   "kind": "tick",
+   "variant": "soft",
+   "frame": 620,
+   "gainDb": 6,
+   "duckDb": 2
+  },
+  {
+   "kind": "tick",
+   "variant": "soft",
+   "frame": 631,
+   "gainDb": 6,
+   "duckDb": 2
+  },
+  {
+   "kind": "tick",
+   "variant": "soft",
+   "frame": 641,
+   "gainDb": 6,
+   "duckDb": 2
+  },
+  {
+   "kind": "tick",
+   "variant": "soft",
+   "frame": 676,
+   "gainDb": 6,
+   "duckDb": 2
+  },
+  {
+   "kind": "tick",
+   "variant": "soft",
+   "frame": 686,
+   "gainDb": 6,
+   "duckDb": 2
+  },
+  {
+   "kind": "tick",
+   "variant": "soft",
+   "frame": 697,
+   "gainDb": 6,
+   "duckDb": 2
+  },
+  {
+   "kind": "tick",
+   "variant": "soft",
+   "frame": 708,
+   "gainDb": 6,
+   "duckDb": 2
+  },
+  {
+   "kind": "tick",
+   "variant": "soft",
+   "frame": 731,
+   "gainDb": 6,
+   "duckDb": 2
+  },
+  {
+   "kind": "tick",
+   "variant": "soft",
+   "frame": 742,
+   "gainDb": 6,
+   "duckDb": 2
+  },
+  {
+   "kind": "tick",
+   "variant": "soft",
+   "frame": 753,
+   "gainDb": 6,
+   "duckDb": 2
+  },
+  {
+   "kind": "tick",
+   "variant": "soft",
+   "frame": 764,
+   "gainDb": 6,
+   "duckDb": 2
+  },
+  {
+   "kind": "tick",
+   "variant": "soft",
+   "frame": 798,
+   "gainDb": 6,
+   "duckDb": 2
+  },
+  {
+   "kind": "tick",
+   "variant": "soft",
+   "frame": 809,
+   "gainDb": 6,
+   "duckDb": 2
+  },
+  {
+   "kind": "tick",
+   "variant": "soft",
+   "frame": 820,
+   "gainDb": 6,
+   "duckDb": 2
+  },
+  {
+   "kind": "tick",
+   "variant": "soft",
+   "frame": 830,
+   "gainDb": 6,
+   "duckDb": 2
+  },
+  {
+   "kind": "tick",
+   "variant": "soft",
+   "frame": 854,
+   "gainDb": 6,
+   "duckDb": 2
+  },
+  {
+   "kind": "tick",
+   "variant": "soft",
+   "frame": 865,
+   "gainDb": 6,
+   "duckDb": 2
+  },
+  {
+   "kind": "tick",
+   "variant": "soft",
+   "frame": 875,
+   "gainDb": 6,
+   "duckDb": 2
+  },
+  {
+   "kind": "tick",
+   "variant": "soft",
+   "frame": 886,
+   "gainDb": 6,
+   "duckDb": 2
+  },
+  {
+   "kind": "paper",
+   "variant": "slide",
+   "frame": 957
+  },
+  {
+   "kind": "paper",
+   "variant": "slide",
+   "frame": 1227
+  },
+  {
+   "kind": "swish",
+   "variant": "soft",
+   "frame": 1230,
+   "gainDb": 1
+  },
+  {
+   "kind": "swish",
+   "variant": "soft",
+   "frame": 1248,
+   "gainDb": 1
+  },
+  {
+   "kind": "swish",
+   "variant": "soft",
+   "frame": 1266,
+   "gainDb": 1
+  },
+  {
+   "kind": "swish",
+   "variant": "soft",
+   "frame": 1284,
+   "gainDb": 1
+  },
+  {
+   "kind": "swish",
+   "variant": "soft",
+   "frame": 1302,
+   "gainDb": 1
+  },
+  {
+   "kind": "swish",
+   "variant": "soft",
+   "frame": 1320,
+   "gainDb": 1
+  },
+  {
+   "kind": "swish",
+   "variant": "soft",
+   "frame": 1338,
+   "gainDb": 1
+  },
+  {
+   "kind": "swish",
+   "variant": "soft",
+   "frame": 1356,
+   "gainDb": 1
+  },
+  {
+   "kind": "paper",
+   "variant": "rustle",
+   "frame": 1386
+  },
+  {
+   "kind": "paper",
+   "variant": "rustle",
+   "frame": 1500
+  },
+  {
+   "kind": "pop",
+   "variant": "cork",
+   "frame": 1509
+  },
+  {
+   "kind": "paper",
+   "variant": "slide",
+   "frame": 1515
+  },
+  {
+   "kind": "paper",
+   "variant": "slide",
+   "frame": 1560
+  },
+  {
+   "kind": "paper",
+   "variant": "slide",
+   "frame": 1620
+  },
+  {
+   "kind": "riser",
+   "variant": "air",
+   "frame": 1632,
+   "beats": 3,
+   "bpm": 98.9
+  },
+  {
+   "kind": "impact",
+   "variant": "soft",
+   "frame": 1632
+  },
+  {
+   "kind": "chime",
+   "variant": "glint",
+   "frame": 1641
+  }
+ ],
+ "key": "D",
+ "bpm": 98.9
+}
