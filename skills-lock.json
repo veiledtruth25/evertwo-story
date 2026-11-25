@@ -161,6 +161,13 @@
       "sourceType": "github",
       "skillPath": "skills/remotion-upgrade/SKILL.md",
       "computedHash": "ef70077c9c394e442e832f712cc919733220cd7e81fb1ab76052ead5a1aa65ca"
+    },
+    "take-one": {
+      "source": "talsiach/take-one",
+      "commit": "38eb9030c88d14c12360889cd8317f8ffb81e9ab",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "e63f364cd085b12ee1e878a8b977d16ffb43bbe693896dc6c1490937229ef455"
     }
   }
 }
