@@ -1,13 +1,17 @@
 ---
 name: cartoon-story-remotion
-description: Make a short narrated cartoon episode (about 30-90 s) as an MP4 with Remotion. Covers the story, a character sheet with the OpenAI image API, every scene drawn from that sheet so characters stay consistent, ElevenLabs narration with word timestamps, slow camera moves, cuts on the words, big word-by-word captions, and a contact-sheet check that finds and fixes broken frames. Use when the user asks for a cartoon, animated story, story episode or "kartun" made with Remotion, or invokes /cartoon-story-remotion.
+description: Make a short narrated cartoon episode (about 30-90 s) as an MP4 with Remotion. Covers the story, a character sheet with the OpenAI image API, every scene drawn from that sheet so characters stay consistent, the user's own recorded narration with word timestamps from local Whisper, slow camera moves, cuts on the words, big word-by-word captions, and a contact-sheet check that finds and fixes broken frames. Use when the user asks for a cartoon, animated story, story episode or "kartun" made with Remotion, or invokes /cartoon-story-remotion.
 argument-hint: "<story idea, length, style>"
 ---
 
 # Cartoon story with Remotion
 
 Adapted from a public step-by-step post by Mihail (AI developer). Six steps, each one checked before the next.
-Talk to the user in Indonesian ("saya"/"kamu"). Keep code, comments and prompts to the image/voice APIs in English.
+Talk to the user in Indonesian ("saya"/"kamu"). Keep code, comments and image prompts in English.
+
+What each service is for: the OpenAI image API draws the pictures (the character sheet and every scene) and
+nothing else. The voice is **never** synthesized: the user records the narration themselves. Do not use
+ElevenLabs, OpenAI TTS or any other text-to-speech unless the user asks for it.
 
 Load `remotion-best-practices` (and `remotion-markup`, `remotion-render` when you reach those steps) before writing
 Remotion code.
@@ -15,7 +19,7 @@ Remotion code.
 ## 0. Ask only what is missing
 
 From the user's request, settle: story idea, length (default 50 s), aspect (default 16:9, 1920x1080; 9:16 for
-Shorts), art style, narrator language and voice. Do not ask for anything you can sensibly default.
+Shorts), art style, narration language. Do not ask for anything you can sensibly default.
 
 ## 1. Set up
 
@@ -27,14 +31,14 @@ cd my-video
 npx remotion skills add   # skip if the remotion-* skills are already loaded
 ```
 
-API keys (the user's own, see AGENTS.md rule 2): `OPENAI_API_KEY` for pictures, `ELEVENLABS_API_KEY` for voice.
+API key (the user's own, see AGENTS.md rule 2): only `OPENAI_API_KEY`, for pictures.
 
-- In a Claude Code cloud session, do not ask for keys in chat or write them to `.env`: call `request_credential`
-  for `api.openai.com` and `api.elevenlabs.io` (ElevenLabs reads header `xi-api-key`), and send a dummy value in
-  the code; the proxy injects the real key.
+- In a Claude Code cloud session, do not ask for the key in chat or write it to `.env`: call `request_credential`
+  for `api.openai.com` and send a dummy value in the code; the proxy injects the real key.
 - Locally, read them from `.env` (add `.env` to `.gitignore`). Never print a key, log it, or put it in a file
   you commit.
-- Before spending credits, tell the user roughly how many image and TTS calls the episode will make.
+- Before spending credits, tell the user how many image calls the episode will make (1 sheet + 1 per scene,
+  plus any redos).
 
 ## 2. The story
 
@@ -70,19 +74,26 @@ Rules: about 2.5 spoken words per second, so 50 s is about 120-130 words and 10-
 Write these as a small Node script (`scripts/images.mjs`) that skips images that already exist, so a rerun only
 fills gaps and a single scene can be redone by deleting its file.
 
-## 4. The voice, with word timestamps
+## 4. The voice: the user's own recording, with word timestamps
 
-Voice the **whole story as one recording** (all narration lines joined with a space), not one file per scene:
-the delivery stays even and there are no gaps between scenes.
-
-- `POST https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/with-timestamps` with `text` and `model_id`
-  (a multilingual model for Indonesian).
-- Save `audio_base64` to `public/voice.mp3`.
-- The response's `alignment` is per character (`characters`, `character_start_times_seconds`,
-  `character_end_times_seconds`). Group characters into words on whitespace and save `public/words.json`:
-  `[{ "text": "word", "start": 0.12, "end": 0.48 }]`.
-- Map each scene to its words by counting words through the narration lines in order. A scene starts at its
-  first word's `start`; the first scene starts at 0, the last scene ends at the audio's end plus about 0.6 s.
+1. Once the story is approved, give the user a recording script: every narration line in order, numbered, in a
+   code block. Ask them to record it **as one take** (one file, all lines in order, a short natural pause between
+   lines) and upload it (mp3, wav or m4a). One take keeps the delivery even and leaves no gaps between scenes.
+   Tips to pass on: quiet room, phone close to the mouth, read at a calm pace, a retake of a line is fine as long
+   as the final file has each line once.
+2. Wait for the file. Do not generate a placeholder voice in the meantime.
+3. Convert it to `public/voice.wav` (`ffmpeg -i <upload> -ac 1 -ar 48000 public/voice.wav`). Trim long silence
+   at the start and end only; never cut inside the narration.
+4. Get word timings with local Whisper as the `remotion-captions` skill describes (`transcribe-captions.md`,
+   `@remotion/whisper-webgpu`); no API key is needed. If WebGPU is not available on the machine, use whisper.cpp
+   (`@remotion/install-whisper-cpp`) with token-level timestamps instead. Set the language to the narration
+   language. Save `public/words.json`: `[{ "text": "word", "start": 0.12, "end": 0.48 }]`.
+5. Whisper hears words; the script has the right spelling. Align the script's words to Whisper's words in order
+   (match on normalized text, tolerate small mishearings, skip extra words such as a repeated retake) and keep
+   the **script** text with Whisper's times. If a whole line is missing or read in the wrong order, tell the user
+   which line and ask for a new take rather than guessing.
+6. Map each scene to its words by counting words through the narration lines in order. A scene starts at its
+   first word's `start`; the first scene starts at 0, the last scene ends at the audio's end plus about 0.6 s.
 
 ## 5. Animate in Remotion
 
@@ -95,7 +106,7 @@ One composition, `durationInFrames` derived from `words.json` (use `calculateMet
 - **Big captions word by word:** show the current word (or 1-3 word chunk) large, bold, centred in the lower
   third, with a dark outline or shadow so it reads on any picture; switch exactly at each word's `start`. Keep
   captions inside the safe area (about 10% margin, more on 9:16).
-- Narration via `<Audio src={staticFile("voice.mp3")} />`. Optional music under it at low volume.
+- Narration via `<Audio src={staticFile("voice.wav")} />`. Optional music under it at low volume.
 
 ## 6. Check your own frames, fix, render again
 
